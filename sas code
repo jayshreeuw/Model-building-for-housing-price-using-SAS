@@ -1,0 +1,118 @@
+data final;
+input obs price	sqft bed bath ac cars pool year	quality	style lot highway;
+lnY = log(price);
+age = 2016 - year;
+interaction1 = sqft/bed;
+interaction2 = bed*bath;
+
+datalines;
+1	360000	3032	4	4	1	2	0	1972	2	1	22221	0
+2	340000	2058	4	2	1	2	0	1976	2	1	22912	0
+3	250000	1780	4	3	1	2	0	1980	2	1	21345	0
+.
+.
+.
+522	95500	      1184	2	1	0	1	0	1951	3	1	14786	0
+523	.	      1950	4	3	1	2	0	1980	2	1	25000	0
+524	.	      3500	3	1	0	1	1	1975	1	1	10000	0
+;
+run;
+
+data final2;
+set final;
+qualitynew = .;
+if quality = 1 or quality = 2 then qualitynew = 1;
+if quality = 3 then qualitynew = 2;
+run;
+
+/* Correlation */
+
+proc corr data = final2;
+run;
+
+/*Model without transformation and interaction*/
+
+proc reg data=final2;
+model price	= sqft bed bath ac cars pool year lot highway qualitynew;
+run;
+
+/* Checking the assumptions*/
+
+*Normality;
+proc reg data=final2;
+model price	= sqft bed bath ac cars pool year lot highway qualitynew interaction1 interaction2;
+output out = myout r = res;
+run;
+ proc univariate normal plot;
+ var res;
+ run;
+
+*Constant Variance;
+proc model;
+parms beta0 beta1 beta2 beta3 beta4 beta5 beta6 beta7 beta8 beta9 beta10 beta12 beta23;
+	price=beta0+beta1*sqft + beta2*bed +beta3*bath + beta4*ac +beta5*cars + beta6*pool + beta7*year +beta8*lot + beta9*highway
+    +beta10*qualitynew + beta12*interaction1 + beta23*interaction2;
+	fit price /breusch=(1 sqft bed bath ac cars pool year lot highway qualitynew interaction1 interaction2);
+run;
+quit;
+
+/* Normality test after Logarithmic transforamtion*/
+
+proc reg data=final2;
+model lnY	= sqft bed bath ac cars pool year lot highway qualitynew interaction1 interaction2 ;
+output out = myout r = res;
+run;
+proc univariate normal plot;
+var res;
+run;
+
+/* Regression model*/
+
+proc reg data=final2;
+model lnY	= sqft bed bath ac cars pool year lot highway qualitynew interaction1 interaction2 ;
+run;
+
+
+/* Test whether sqft and bed is jointly significant*/
+
+proc reg data=final2;
+model lnY	= sqft bed bath ac cars pool year lot highway qualitynew interaction1 interaction2 ;
+test sqft = bed = 0;
+run;
+
+
+/* Test whether bed and bath is jointly significant*/
+
+proc reg data=final2;
+model lnY	= sqft bed bath ac cars pool year lot highway qualitynew interaction1 interaction2 ;
+test bed = bath = 0;
+run;
+
+
+/* PRESS criterion*/
+
+proc reg data = final2 outest=mymodel press;
+	model lnY = sqft bed bath ac cars pool year lot highway qualitynew interaction1 interaction2 /influence;
+	output out=myout2 r=res press=press;
+run;
+proc print data=mymodel;
+run;
+
+/* Forward selection */
+
+proc reg data=final2;
+model lnY	= sqft bed bath ac cars pool year lot highway qualitynew interaction1 interaction2 / selection = f sle = 0.01;
+run;
+
+/* Adjusted R square */
+
+proc reg data=final2;
+model lnY	= sqft bed bath ac cars pool year lot highway qualitynew interaction1 interaction2 / selection = adjrsq;
+run;
+
+/* 95% CI and PI*/
+
+proc reg data=final2;
+model lnY	= sqft bed bath ac cars pool year lot highway qualitynew interaction1 interaction2 / clb cli;
+run;
+
